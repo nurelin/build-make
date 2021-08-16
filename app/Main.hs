@@ -1,23 +1,21 @@
-{-# LANGUAGE ApplicativeDo #-}
- 
 module Main where
 
 import Build
+import Build.Rebuilder (Rebuilder)
+import Build.Scheduler
 import Build.Store
 import Build.Task
-import Build.Scheduler
-import Build.Rebuilder (Rebuilder)
 import Build.Task.Applicative
-import qualified Data.Map as Map
+import Control.Applicative
 import Control.Monad.State
-import Data.Time.Clock.POSIX
-import System.IO.Unsafe
-import Debug.Trace
+import qualified Data.Map as Map
 import Data.Maybe
-import Utilities
-
-import qualified System.Posix.Process as P
+import Data.Time.Clock.POSIX
+import Debug.Trace
+import System.IO.Unsafe
 import qualified System.Posix.Files as F
+import qualified System.Posix.Process as P
+import Utilities
 
 type MakeInfo k = (POSIXTime, Map.Map k POSIXTime)
 
@@ -25,16 +23,15 @@ type MakeInfo k = (POSIXTime, Map.Map k POSIXTime)
 -- needs to be rebuilt. Used by Make.
 modTimeRebuilder :: Ord k => Rebuilder Applicative (MakeInfo k) k v
 modTimeRebuilder key value task = Task $ \fetch -> do
-    (now, modTimes) <- get
-    let dirty = case Map.lookup key modTimes of
-            Nothing -> True
-            time -> any (\d -> Map.lookup d modTimes > time) (dependencies task)
-    if not dirty
+  (now, modTimes) <- get
+  let dirty = case Map.lookup key modTimes of
+        Nothing -> True
+        time -> any (\d -> Map.lookup d modTimes > time) (dependencies task)
+  if not dirty
     then return value
     else do
-        put (now + 1, Map.insert key now modTimes)
-        run task fetch
-
+      put (now + 1, Map.insert key now modTimes)
+      run task fetch
 
 make :: Ord k => Build Applicative (MakeInfo k) k v
 make = topological modTimeRebuilder
@@ -49,7 +46,8 @@ init key = do
   now <- getPOSIXTime
   m <- tmap
   i <- imap
-  pure $ initialise (now, i) $ \k ->
+  pure $
+    initialise (now, i) $ \k ->
       case Map.lookup k m of
         Nothing -> error ("No key " ++ k ++ " found")
         Just x -> x
@@ -70,7 +68,7 @@ init key = do
     tmp k = do
       s <- F.getFileStatus k
       pure $ F.modificationTimeHiRes s
-         
+
 -- END of store initialization
 
 tasks :: Tasks Applicative String (IO ())
@@ -79,29 +77,27 @@ tasks "main" = Just main_elf
 tasks _ = Nothing
 
 test_o :: Task Applicative String (IO ())
-test_o = Task $ (\fetch -> 
-                     let t1 = fetch "main.c" in
-                       let t2 = P.executeFile "gcc" True [ "main.c", "-c", "-o", "main.o" ] Nothing in
-                         do
-                          t3 <- t1
-                          pure $ t3 >> t2)
+test_o =
+  Task $
+    ( \fetch ->
+        let t1 = fetch "main.c"
+         in let t2 = P.executeFile "gcc" True ["main.c", "-c", "-o", "main.o"] Nothing
+             in (>>) <$> t1 <*> (pure t2)
+    )
 
 main_elf :: Task Applicative String (IO ())
-main_elf = Task $ (\fetch ->
-                     let t1 = fetch "main.o" in
-                       let t2 = P.executeFile "gcc" True [ "main.o", "-o", "main" ] Nothing in
-                         do
-                          t3 <- t1
-                          pure $ t3 >> t2)
+main_elf =
+  Task $
+    ( \fetch ->
+        let t1 = fetch "main.o"
+         in let t2 = P.executeFile "gcc" True ["main.o", "-o", "main"] Nothing
+             in (>>) <$> t1 <*> (pure t2)
+    )
 
 -- END of task descriptions
 
 main :: IO ()
 main = do
   init_store <- Main.init "main"
-  getValue "main" $ make tasks "main" init_store
-       
--- name -> rule
--- 1. build tasks
--- 2. obtain all dependencies from wanted (+ wanted itself)
---    if file exists add it to the task descriptions
+  let end_store = make tasks "main" init_store
+  getValue "main" end_store
