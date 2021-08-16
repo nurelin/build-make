@@ -11,8 +11,6 @@ import Control.Monad.State
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Time.Clock.POSIX
-import Debug.Trace
-import System.IO.Unsafe
 import qualified System.Posix.Files as F
 import qualified System.Posix.Process as P
 import Utilities
