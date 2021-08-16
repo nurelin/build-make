@@ -81,8 +81,8 @@ test_o =
   Task $
     ( \fetch ->
         let t1 = fetch "main.c"
-         in let t2 = P.executeFile "gcc" True ["main.c", "-c", "-o", "main.o"] Nothing
-             in (>>) <$> t1 <*> (pure t2)
+            t2 = P.executeFile "gcc" True ["main.c", "-c", "-o", "main.o"] Nothing
+         in (>>) <$> t1 <*> (pure t2)
     )
 
 main_elf :: Task Applicative String (IO ())
@@ -90,8 +90,8 @@ main_elf =
   Task $
     ( \fetch ->
         let t1 = fetch "main.o"
-         in let t2 = P.executeFile "gcc" True ["main.o", "-o", "main"] Nothing
-             in (>>) <$> t1 <*> (pure t2)
+            t2 = P.executeFile "gcc" True ["main.o", "-o", "main"] Nothing
+         in (>>) <$> t1 <*> (pure t2)
     )
 
 -- END of task descriptions
